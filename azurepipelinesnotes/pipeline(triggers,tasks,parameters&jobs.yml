@@ -1,0 +1,206 @@
+#signifies trigger for CI
+trigger:
+  - master
+  - releases/*
+#far complex
+trigger:
+  branches:
+    include:
+    -  master
+    -  releases/*
+    exclude:
+    -  releases/old*
+#for batching when your team pushes repos very often, batch pauses when there is a previous upload till he next and build them all together.
+trigger:
+  batch: true
+  branches:
+    include:
+    '*'
+#you can include paths from your repository, it is vital to include branches you want triggered when selecting paths.
+trigger:
+  branches:
+    include:
+    - master
+    - releases
+    exclude:
+    - releases/old*
+  paths:
+  include: 
+  - docs/
+  exclude:
+  - docs/file/sweet
+
+  #you can opt out from triggers with
+triggers: none
+
+#to exclude a step, task or job 
+condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+
+#to include pull requests involving master and releases
+pr:
+- master
+- releases/*
+
+#by default pull requests are enabled if you don't state them they represent
+pr:
+  branches:
+    include:
+    - '*'
+  
+# to exclude pull triggers
+pr: none
+
+#running on schedule
+schedules:
+- cron: string
+  displayName: string
+  branches:
+    include: master
+    exclude: releases/*
+  always: boolean  #this means if to always run the pipeline or till there is been some change in the source code, the default is false
+
+# cron syntax
+# this is in the format of
+Minutes - 0:59
+Hours - 0:23
+Days of the month - 1:31
+Months - 1:12, full english names, first three letters
+Days of the week - 0:6, full english names, first three letters
+ 
+"30 14 12 5 7"
+ This illustrates 2:30pm on the 12th day of May 
+ or
+ "0 9,12,15 0 0 0" 
+ this shows that runs occur every three hours of everyday
+#to trigger multiple repositories
+resources:
+  pipelines:
+  - pipeline: secuitylib
+  - source: source directory
+  #Things to note about artifact building be sure to enable the trigger for continous deployment on the artifact and include filters
+
+
+#Tasks they are versioned
+steps:
+- task: npm@1
+  displayName: install npm
+  inputs:
+    versionSpec: '3.0'
+    architecture: 'x64'
+#it includes conditions and the default is only when all previous dependencies have succeeded
+  #unless the run was cancelled when previous dependencies failed it takes 
+  condition: succeededOrFailed()
+  #even if the previous dependencies have failed and run cancelled
+  condition: always()
+  #when previous dependencies have failed
+  condition: failed()
+  #you can run tasks in the host machine(agent) or through containers.
+  resources:
+    containers:
+    - container: pycontainer
+      image: python:3.8
+
+steps:
+- task: npm@1
+  agent: host
+- task: python@3
+  agent: pycontainer
+#you can validate your tools in tasks across multiple versions that is you can download tools of they are not already on the agent
+pool:
+  vmImage: 'Ubuntu 16.04'
+
+steps:
+- tasks: NodeTool@0  #the tool
+  displayName: Node Install #describes the tool
+  inputs:
+    versionSpec: '6.x' #the version we are installing
+- script:
+    which node  #displays the version of the node installed and shows the location of node
+    #task groups makes it easy to mash up a number of tasks in a build pipeline into one so it can be easy to add to other pipelines when needed, 
+    #when you make a change in this task group it reflects across the pipelines where the task group is included
+    #ensure all the parameters in the task groups are saved as variables
+
+  #Parameters, they are like conditionals and they take booleans when the YesorNo takes a boolean the build succeeds if not it fails
+  parameters:
+  - name: yesorNo 
+    type: boolean
+    default: false
+
+  steps:
+  - script: echo ${{ parameters.yesorNo }}
+
+  #Include a template on your pipeline
+  trigger:
+  - master
+
+  extends:
+    template: simple-param.yml
+    parameters:
+      yesorNo: false #include a non boolean value for the build to fail
+  #you can use parameters to signal if a template should run or not
+  parameters:
+  - name: Buildtemplate #parameter for the template
+    type: boolean
+    default: false
+
+  steps:
+  - ${{ if eq (parameters.Buildtemplate, True) }}:
+  - template: build.yml #the template
+  - ${{ if not (eq( parameters.experimentalTemplate, true)) }}:
+  - template: stable.yml
+
+  #data type 
+  parameters:
+- name: myString
+  type: string
+  default: a string
+- name: myMultiString
+  type: string
+  default: default
+  values:
+  - default
+  - ubuntu
+- name: myNumber
+  type: number
+  default: 2
+  values:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 16
+- name: myBoolean
+  type: boolean
+  default: true
+- name: myObject
+  type: object
+  default:
+    foo: FOO
+    bar: BAR
+    things:
+    - one
+    - two
+    - three
+    nested:
+      one: apple
+      two: pear
+      count: 3
+- name: myStep
+  type: step
+  default:
+    script: echo my step
+- name: mySteplist
+  type: stepList
+  default:
+    - script: echo step one
+    - script: echo step two
+
+trigger: none
+
+jobs: 
+- job: stepList
+  steps: ${{ parameters.mySteplist }}
+- job: myStep
+  steps:
+    - ${{ parameters.myStep }}
+
